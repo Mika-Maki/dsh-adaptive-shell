@@ -1,6 +1,6 @@
 {
   "name": "dsh-adaptive-shell",
-  "version": "5.3.1",
+  "version": "5.4.0",
   "private": true,
   "description": "DeepSeek Harness 插件：按屏幕尺寸与比例匹配手机/平板/桌面。给输入框与会话页头补安全区（刘海、Home 指示条）、窄屏收紧留白、触摸设备放大控件，并把配色换成 Miracle 设计语言（暖白纸面/墨蓝色阶/蓝紫品牌/柔和圆角/克制阴影，暗色独立配色）。手机上完全收起 56px 图标栏（入口在会话页头）；侧栏与主会话按 Miracle 动效纪律同步位移（只动 transform、两向同时结束、reduced-motion 瞬时降级）；不动文档高度、不含任何覆盖层，所以不可能把界面锁住；桌面级窗口一条规则都不命中。",
   "keywords": [

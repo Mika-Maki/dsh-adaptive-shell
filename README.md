@@ -1,5 +1,13 @@
 # dsh-adaptive-shell
 
+[![checks](https://github.com/Mika-Maki/dsh-adaptive-shell/actions/workflows/checks.yml/badge.svg)](https://github.com/Mika-Maki/dsh-adaptive-shell/actions/workflows/checks.yml)
+
+> A responsive + Miracle-visual layer for the DeepSeek Harness Web UI, shipped as one Cordis
+> client plugin: phone drawer with a permanent header toggle, full-bleed settings sheet, one
+> card scheme for the transcript, and motion built from named steps. Desktop gets its own
+> additions rather than being left alone. 169 static checks run the real `client.js`.
+> [中文文档见下](#它改了什么)。
+
 DeepSeek Harness Web 界面的**自适应 + Miracle 视觉**层：按屏幕尺寸与比例匹配手机 / 平板 / 桌面，
 给输入框和页头补安全区、窄屏收紧留白、触摸设备放大控件，并把配色换成 Miracle 设计语言。
 
@@ -16,6 +24,8 @@ DeepSeek Harness Web 界面的**自适应 + Miracle 视觉**层：按屏幕尺�
 - [设置项](#设置项)
 - [与 dsh-codex-efforting 的兼容契约](#与-dsh-codex-efforting-的兼容契约)
 - [依赖的 shell 公开标记](#依赖的-shell-公开标记)
+- [三个层叠陷阱（写给写 Cordis UI 插件的人）](#三个层叠陷阱写给写-cordis-ui-插件的人)
+- ["我改了但页面没变"](#我改了但页面没变)
 - [已知限制](#已知限制)
 - [静态自检](#静态自检)
 - [安装 / 卸载](#安装--卸载)
@@ -300,6 +310,72 @@ narrow  = width < 1024                     // 独立于 form，镜像 shell 的�
 | `[data-shell-overlay]` / `[data-sidebar-collapsed]` | **CSS 里只出现在那一条图标栏规则上**（三重门）；另外 JS 只读地用于诊断行显示侧栏状态 |
 
 **如果 shell 改了这些标记**：选择器失配 ⇒ 规则静默失效 ⇒ 界面回到出厂。不崩、不闪、不半成品。
+
+## 三个层叠陷阱（写给写 Cordis UI 插件的人）
+
+这三个坑的共同点：**样式表本身完全正确**，肉眼与静态审查都看不出问题，只有把浏览器里的
+**计算值**读出来才会现形。它们分别花掉了我好几轮。
+
+### 1. 自定义属性声明在错误的元素上
+
+应用的调色板 `--dsw-alias-*` **定义在 `body` 上**，而我把自己的令牌层写在 `html[data-dsh-adaptive]`。
+自定义属性只**向下继承**，于是：
+
+```css
+/* 在 html 上取 body 的值 → 取不到 */
+html[data-dsh-adaptive] body{--dshas-card-surface:var(--dsw-alias-bg-layer-1)}   /* ✅ 正确位置 */
+```
+
+后果不是"颜色不对"，而是**整条声明作废**：`background: var(--dshas-card-surface)` 里的 `var()`
+解析成无效值 → `background` 回退成初始值 → 卡片全部透明。凡是用令牌的规则一起静默死掉，
+而用字面值的规则（抽屉、设置页）却一切正常 —— 这就是"卡片时有时无"的真正原因。
+
+**判据**：`getComputedStyle(document.body).getPropertyValue('--你的令牌')` 返回空串，就是它。
+
+### 2. `transition` 是一个属性，平手时后者通吃
+
+折叠根上有两条规则都写 `transition`：一条给 `grid-template-rows`（展开），一条给 `height`（收起）。
+两者特异性相同，而网格规则在样式表更后面 → **它赢**，元素上生效的过渡只有 `grid-template-rows`，
+高度变化因此没有过渡。**给两条过渡分别声明没用，必须让收起规则的特异性严格更高。**
+
+### 3. 壳的规则会以更高特异性抢你的声明
+
+思考展开后，它的标题行会被 shell 变成**吸顶条**并刷成页面底色：
+
+```css
+.lcKema_root[data-expanded] [data-open] [data-disclosure-row]{ background: var(--dsw-alias-bg-base); position: sticky }
+```
+
+特异性 (0,4,0) 高于我那条"强制透明"的 (0,3,1) → 我的规则一直在输，而样式表看起来毫无问题。
+正解不是覆盖成透明，而是**沿用它的结构与不透明度、只换颜色**：
+
+```css
+html[data-dsh-adaptive-miracle="1"] [data-variant="think"][data-expanded] [data-open] [data-disclosure-row]{
+  background: var(--dshas-card-surface);   /* 保持吸顶、保持不透明，只是换成卡片色 */
+}
+```
+
+**判据**：不要猜谁赢。`tools/inspect.mjs` 会把每个属性的**竞争者与特异性**列出来。
+
+## "我改了但页面没变"
+
+插件被拆成两半注入，**两半的更新路径不同**：
+
+| 半 | 注入方式 | 改代码后 |
+|---|---|---|
+| 样式 | 宿主抽取为 `<style data-plugin="…">` | 随页面加载，**刷新即新** |
+| 脚本 | 按**带 rev 的 URL** 加载的 ES 模块 | rev 不变 → **浏览器吃缓存旧模块** |
+
+所以会出现"改 CSS 立刻见效、改 JS 像没改"的假象。我有好几轮是对着**旧模块**改代码。
+
+现在插件自己会标明版本，读一下就知道跑的是哪一半：
+
+```js
+document.documentElement.getAttribute('data-dsh-adaptive-build-js')   // "5.3.1-js"
+getComputedStyle(document.body).getPropertyValue('--dshas-build')     // "5.3.1-css"
+```
+
+两者不一致 → 脚本是旧的 → **彻底重启应用**（普通刷新可能仍复用同一个 rev 的 URL）。
 
 ## 已知限制
 

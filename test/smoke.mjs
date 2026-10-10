@@ -240,7 +240,8 @@ function unwrap(entry) {
 }
 
 const parsed = CSS_ENTRIES.map(unwrap);
-const AT_RULE_WRAPPERS = ["@media (prefers-reduced-motion: reduce)", "@supports (interpolate-size: allow-keywords)", "@keyframes dshas-unfold"];
+const POINTER_GATE = '@media (hover: hover) and (pointer: fine)';
+const AT_RULE_WRAPPERS = [POINTER_GATE, "@media (prefers-reduced-motion: reduce)", "@supports (interpolate-size: allow-keywords)", "@keyframes dshas-unfold"];
 const styleRules = parsed.filter((rule) => !(rule.wrapper !== null && rule.wrapper.startsWith("@keyframes")));
 const isKeyframes = (rule) => rule.wrapper !== null && rule.wrapper.startsWith("@keyframes");
 
@@ -470,7 +471,7 @@ check(
 
 // --- gates ------------------------------------------------------------------
 const OWN_MARKS = ["data-dsh-adaptive-row", "data-dsh-adaptive-select", "data-dsh-adaptive-switch", "data-dsh-adaptive-readout", "data-dsh-adaptive-nav"];
-const GATES = ["data-dsh-adaptive-form=", "data-dsh-adaptive-narrow=", "data-dsh-adaptive-density=", "data-dsh-adaptive-touch=", "data-dsh-adaptive-compat=", "data-dsh-adaptive-miracle=", "data-dsh-adaptive-motion="];
+const GATES = ["data-dsh-adaptive-form=", "data-dsh-adaptive-narrow=", "data-dsh-adaptive-density=", "data-dsh-adaptive-touch=", "data-dsh-adaptive-compat=", "data-dsh-adaptive-miracle=", "data-dsh-adaptive-motion=", "data-dsh-adaptive-wideReading="];
 const ungated = [];
 for (const rule of styleRules) {
 	// A rule that only defines private custom properties restyles nothing: it is the
@@ -480,6 +481,9 @@ for (const rule of styleRules) {
 	for (const selector of rule.selector.split(",").map((value) => value.trim())) {
 		if (OWN_MARKS.some((mark) => selector.includes(mark))) continue;
 		if (GATES.some((gate) => selector.includes(gate))) continue;
+		// A rule inside a pointer-capability media query is gated by that query, not by an attribute:
+		// it can only ever apply to a device with a real pointer.
+		if (rule.wrapper !== null && rule.wrapper.startsWith(POINTER_GATE)) continue;
 		ungated.push(selector);
 	}
 }
@@ -1157,6 +1161,47 @@ check(
 	/--dshas-motion-unfold:(\d+)ms/.test(cssText) &&
 		Number(/--dshas-motion-unfold:(\d+)ms/.exec(cssText)[1]) > Number(/--dshas-motion-drawer:(\d+)ms/.exec(cssText)[1]) &&
 		!/transition:grid-template-rows var\(--dshas-motion-drawer\)/.test(cssText),
+);
+
+check(
+	"desktop: the transcript cards answer the cursor with ink, and nothing moves",
+	parsed.some((rule) => rule.wrapper === POINTER_GATE && rule.selector.includes('[data-variant="think"]:hover') && rule.body.includes("border-color:")) &&
+		!parsed.some((rule) => rule.wrapper === POINTER_GATE && rule.body.includes("transform")),
+);
+check(
+	"desktop: the wide-screen reading measure is gated on its own switch, so a phone never pays",
+	cssText.includes('html[data-dsh-adaptive-wideReading="1"] [data-conversation-scroll]') &&
+		source.includes('const A_WIDE = "data-dsh-adaptive-wideReading"') &&
+		source.includes("prefsNow.wide && wide"),
+);
+check(
+	"desktop: the measure is only stamped on a wide desktop viewport",
+	source.includes('const wide = verdict.form === "desktop" && size.w >= 1280;'),
+);
+check(
+	"settings: the desktop additions are switchable from the settings page",
+	source.includes('{ id: PKG + ".wide", order: 48, kind: "switch", field: "wide"'),
+);
+check(
+	"codex-efforting: the growth origin is bottom-centre, since the card clamps its left edge",
+	cssText.includes(".efs-card{transform-origin:50% 100%}"),
+);
+
+check(
+	"diagnostics: the build stamp is ONE constant, and it matches package.json",
+	// It used to be two hand-written strings. They drifted, and then the plugin reported a version
+	// that was not the one running — a diagnostic that lies is worse than none at all.
+	(() => {
+		const declared = /const BUILD = "(\d+\.\d+\.\d+)"/.exec(source);
+		const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+		return declared !== null && declared[1] === pkg.version;
+	})(),
+);
+check(
+	"desktop: the wide-reading preference has a store default, so the attribute can actually be stamped",
+	source.includes('const PREF_DEFAULTS = {')
+		? /PREF_DEFAULTS = \{[^}]*wide: (true|false)/.test(source)
+		: false,
 );
 
 //#endregion

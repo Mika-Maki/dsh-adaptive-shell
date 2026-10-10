@@ -68,6 +68,12 @@ window.__ModuleLoader__.load({
 		const h = React.createElement;
 
 		const PKG = "dsh-adaptive-shell";
+		/**
+		 * Build identity, stamped into BOTH halves and checked against package.json by the suite.
+		 * It used to be two hand-written strings that silently drifted and then reported a version
+		 * that was not running — a diagnostic that lies is worse than no diagnostic.
+		 */
+		const BUILD = "5.4.0";
 		const NS = "adaptiveShell";
 		const PREF_KEY = PKG + "/preferences";
 
@@ -96,6 +102,8 @@ window.__ModuleLoader__.load({
 		 * Miracle palette: turning the colours off must not silently turn the animation off.
 		 */
 		const A_MOTION = "data-dsh-adaptive-motion";
+		/** Desktop reading measure switch (`data-dsh-adaptive-wide-reading`). */
+		const A_WIDE = "data-dsh-adaptive-wideReading";
 		const PANEL_CONVERSATION = "conversation";
 
 		// Read-only diagnostic markers. The plugin observes these to *report* the
@@ -157,7 +165,7 @@ window.__ModuleLoader__.load({
 		 * browser half; the trade-off is that the choice is per-browser rather than
 		 * per-profile, which is the right scope for a per-device layout switch.
 		 */
-		const PREF_DEFAULTS = { enabled: true, form: "auto", density: "auto", touch: true, compat: true, miracle: true, push: true };
+		const PREF_DEFAULTS = { enabled: true, form: "auto", density: "auto", touch: true, compat: true, miracle: true, push: true, wide: false };
 		const PREF_FORMS = ["auto", "phone", "tablet", "desktop"];
 		const PREF_DENSITIES = ["auto", "on", "off"];
 
@@ -309,6 +317,7 @@ window.__ModuleLoader__.load({
 				miracle: true,
 				push: true,
 				motion: false,
+				wide: true,
 				narrow: false,
 				width: 0,
 				height: 0,
@@ -345,6 +354,7 @@ window.__ModuleLoader__.load({
 					root.removeAttribute(A_PUSH);
 					root.removeAttribute(A_PANEL);
 					root.removeAttribute(A_MOTION);
+					root.removeAttribute(A_WIDE);
 					root.removeAttribute("data-dsh-adaptive-build-js");
 					root.style.removeProperty("--dsh-adaptive-vw");
 					root.style.removeProperty("--dsh-adaptive-vh");
@@ -374,6 +384,7 @@ window.__ModuleLoader__.load({
 				const touch = prefsNow.touch === true && coarsePointer();
 				const reducedMotion = mql("(prefers-reduced-motion: reduce)");
 				const motion = reducedMotion === null || !reducedMotion.matches;
+				const wide = verdict.form === "desktop" && size.w >= 1280;
 				const narrow = size.w < RULES.narrowWidth;
 
 				const key =
@@ -391,6 +402,8 @@ window.__ModuleLoader__.load({
 					"|" +
 					(prefsNow.push ? "1" : "0") +
 					"|" +
+					(prefsNow.wide && wide ? "1" : "0") +
+					"|" +
 					(motion ? "1" : "0") +
 					"|" +
 					(narrow ? "1" : "0");
@@ -402,7 +415,7 @@ window.__ModuleLoader__.load({
 						// Build stamps: the stylesheet always arrives fresh, the script module is
 						// fetched by a rev-bearing URL and can be served from cache. Reading both
 						// tells you which half is actually running.
-						root.setAttribute("data-dsh-adaptive-build-js", "5.1.1-js");
+						root.setAttribute("data-dsh-adaptive-build-js", BUILD + "-js");
 						root.setAttribute(A_FORM, verdict.form);
 						root.setAttribute(A_ORIENT, verdict.orient);
 						root.setAttribute(A_DENSITY, density);
@@ -418,6 +431,10 @@ window.__ModuleLoader__.load({
 						else root.removeAttribute(A_PUSH);
 						if (motion) root.setAttribute(A_MOTION, "1");
 						else root.removeAttribute(A_MOTION);
+						// Only meaningful where there is width to spare, so it is stamped only above
+						// the desktop breakpoint: a phone never pays for the rule.
+						if (prefsNow.wide && wide) root.setAttribute(A_WIDE, "1");
+						else root.removeAttribute(A_WIDE);
 						root.style.setProperty("--dsh-adaptive-vw", size.w + "px");
 						root.style.setProperty("--dsh-adaptive-vh", size.h + "px");
 						root.style.setProperty("--dsh-adaptive-ratio", String(Math.round(verdict.ratio * 1000) / 1000));
@@ -436,6 +453,7 @@ window.__ModuleLoader__.load({
 					snapshot.compat !== prefsNow.compat ||
 					snapshot.miracle !== prefsNow.miracle ||
 					snapshot.push !== prefsNow.push ||
+					snapshot.wide !== (prefsNow.wide && wide) ||
 					snapshot.motion !== motion ||
 					snapshot.narrow !== narrow ||
 					snapshot.width !== size.w ||
@@ -450,6 +468,7 @@ window.__ModuleLoader__.load({
 						compat: prefsNow.compat,
 						miracle: prefsNow.miracle,
 						push: prefsNow.push,
+						wide: prefsNow.wide && wide,
 						motion: motion,
 						narrow: narrow,
 						width: size.w,
@@ -1207,7 +1226,7 @@ window.__ModuleLoader__.load({
 			// these three tokens, so the scheme is changed in exactly one place. The fill is the
 			// application's own raised layer rather than an invented tone, which is what makes a
 			// card read as part of the page instead of a patch of a different colour.
-			"html[data-dsh-adaptive] body{--dshas-motion-enter:cubic-bezier(0,0,.2,1);--dshas-motion-exit:cubic-bezier(.4,0,1,1);--dshas-motion-drawer:260ms;--dshas-motion-press:120ms;--dshas-motion-unfold:420ms;--dshas-build:5.1.1-css;--dshas-card-surface:var(--dsw-alias-bg-layer-1);--dshas-card-hairline:color-mix(in srgb, var(--dsw-alias-label-tertiary) 34%, transparent);--dshas-card-radius:var(--dsw-radius-md)}",
+			"html[data-dsh-adaptive] body{--dshas-motion-enter:cubic-bezier(0,0,.2,1);--dshas-motion-exit:cubic-bezier(.4,0,1,1);--dshas-motion-drawer:260ms;--dshas-motion-press:120ms;--dshas-motion-unfold:420ms;--dshas-build:" + BUILD + "-css;--dshas-card-surface:var(--dsw-alias-bg-layer-1);--dshas-card-hairline:color-mix(in srgb, var(--dsw-alias-label-tertiary) 34%, transparent);--dshas-card-radius:var(--dsw-radius-md)}",
 
 			// --- the sidebar on a narrow phone ---------------------------------------
 			// The frame's sidebar column is the one structural thing this plugin touches, for
@@ -1483,7 +1502,12 @@ window.__ModuleLoader__.load({
 			// anchored above the composer, so it grows up out of that corner rather than out of
 			// its own middle. Only `transform-origin` is touched — never its colours, its
 			// border, its shadow or its layout.
-			'html[data-dsh-adaptive-motion="1"] .efs-card{transform-origin:0% 100%}',
+						// Bottom-centre rather than a corner, and that is deliberate: the card computes
+			// `left` from its trigger but clamps it to `innerWidth - 340 - 12`, so on a phone it
+			// ends up flush with the RIGHT margin while on a wide screen it sits at the trigger's
+			// left edge. No single corner is right for both, and the horizontal share of a
+			// 0.96 -> 1 scale is only a few pixels, so centring the origin is never visibly wrong.
+			'html[data-dsh-adaptive-motion="1"] .efs-card{transform-origin:50% 100%}',
 			'html[data-dsh-adaptive-motion="1"] [aria-modal="true"],html[data-dsh-adaptive-motion="1"] [role="dialog"]{transition:transform var(--dshas-motion-drawer) var(--dshas-motion-enter);transform-origin:50% 40%}',
 			'@starting-style{html[data-dsh-adaptive-motion="1"] [data-sidebar-right-panel],html[data-dsh-adaptive-motion="1"] [data-dockkit-float],html[data-dsh-adaptive-motion="1"] [aria-modal="true"],html[data-dsh-adaptive-motion="1"] [role="dialog"],html[data-dsh-adaptive-motion="1"] [data-slot="main"]:not(:has([data-conversation-scroll])),html[data-dsh-adaptive-motion="1"] [data-slot="settings.section"]{transform:scale(.97) translateY(-4px)}}',
 			'html[data-dsh-adaptive-motion="1"] [data-sidebar-right-panel]:not([data-sidebar-right-open]){transform:translateX(18px) scale(.99)}',
@@ -1497,6 +1521,24 @@ window.__ModuleLoader__.load({
 			// matters. Two-option controls are untouched, and so is everything outside settings.
 			'html[data-dsh-adaptive-narrow="1"][data-dsh-adaptive-form="phone"] [data-slot="settings.general.item"] :has(> button:nth-child(3)){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}',
 			'html[data-dsh-adaptive-narrow="1"][data-dsh-adaptive-form="phone"] [data-slot="settings.general.item"] :has(> button:nth-child(3)) > button{min-width:0}',
+			// --- desktop gets its own additions ---------------------------------------
+			// The phone is not the only target: on a pointer device the transcript cards answer the
+			// cursor, and on a wide screen the transcript keeps a readable measure instead of
+			// stretching a paragraph across 1400px. Both are desktop-only by construction
+			// (`hover: hover`) and both are switchable, so a desktop user keeps control.
+			//
+			// The hover answer is ink, not displacement: the border takes the interactive colour and
+			// nothing moves — the rule this project keeps everywhere.
+			// Keyboard users get to see where they are. The shell's own focus style is thin on a wide
+			// screen, and these rows are interactive (they open and close), so a focus ring that
+			// matches the card's corner is a real desktop affordance rather than decoration.
+			'@media (hover: hover) and (pointer: fine){html[data-dsh-adaptive] [data-disclosure-row][data-expandable]:focus-visible,html[data-dsh-adaptive] [data-variant="think"]:focus-within,html[data-dsh-adaptive] [data-tool]:focus-within{outline:2px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 70%, transparent);outline-offset:2px}}',
+			'@media (hover: hover) and (pointer: fine){html[data-dsh-adaptive] [data-variant="think"]:hover,html[data-dsh-adaptive] [data-tool]:hover,html[data-dsh-adaptive] [data-chat-flow-kind="turn-process"]:hover{border-color:color-mix(in srgb, var(--dsw-alias-label-tertiary) 72%, transparent)}}',
+			// Reading measure: capped and centred, so the eye does not have to travel the width of a
+			// monitor and back for every line. Only above 1280px, and only while the preference is on.
+			'html[data-dsh-adaptive-wideReading="1"] [data-conversation-scroll] [data-chat-flow-key],html[data-dsh-adaptive-wideReading="1"] [data-conversation-scroll] [data-chat-flow-kind]{max-width:74ch;margin-inline:auto}',
+			'html[data-dsh-adaptive-wideReading="1"] [data-conversation-scroll] [data-slot="conversation.composer"],html[data-dsh-adaptive-wideReading="1"] [data-conversation-scroll] div:has(> [data-composer-card]){max-width:74ch;margin-inline:auto}',
+
 			// --- settings on a phone -------------------------------------------------
 			// Verified against the panel's own render, not inferred from its stylesheet:
 			//
@@ -1764,6 +1806,8 @@ window.__ModuleLoader__.load({
 			"row.push.desc": "展开侧栏时主会话按同一时长、同一曲线同步右移，位移量等于侧栏宽度，绝不重排正文。代价：展开期间，依赖“固定定位 + 视口坐标”的第三方浮层（如推理卡片）会偏移一个侧栏宽度，装了那类插件时建议关掉本项。",
 			"row.miracle.title": "Miracle 视觉",
 			"row.miracle.desc": "换成 Miracle 设计语言：暖白纸感底、墨蓝色阶、蓝紫品牌色、柔和圆角、带墨色的克制阴影；暗色是独立配色而不是反色。只叠加令牌层，关掉即逐字还原。",
+			"row.wide.title": "宽屏阅读宽度",
+			"row.wide.desc": "默认关闭：shell 自己在宽屏已经有合理行宽，这条是给想要更窄、更省眼的人用的（约 74 字符并居中）。手机上无效。",
 			"row.readout.title": "当前判定",
 			"row.readout.desc": "插件真正读到的数值。第二行是各标记的命中个数，第三行是设置面板的真实元素链（含实测宽度）。都读不到就显示 —，不推测、不编造。",
 			"readout.phone": "手机",
@@ -1804,6 +1848,8 @@ window.__ModuleLoader__.load({
 			"row.push.desc": "Opening the drawer moves the conversation right by exactly the drawer width, on the same duration and curve — nothing is resized, so the transcript never rewraps. Cost: while the drawer is open, a third-party overlay that mixes `position:fixed` with viewport coordinates (the effort card) is offset by one drawer width; turn this off if you use one.",
 			"row.miracle.title": "Miracle look",
 			"row.miracle.desc": "Switch to the Miracle design language: warm paper ground, ink label ramp, blue-purple brand, soft radii and ink-hued restrained shadows; dark is its own palette rather than an inversion. It is one token layer, so turning it off restores the shipped theme verbatim.",
+			"row.wide.title": "Wide-screen reading width",
+			"row.wide.desc": "Off by default: the shell already centres a sensible measure on wide screens. Turn this on for a narrower one (about 74 characters). No effect on phones.",
 			"row.readout.title": "Detected state",
 			"row.readout.desc": "What the plugin actually read. Line 2 counts marker hits; line 3 is the settings panel\u2019s real element chain with measured widths.",
 			"readout.phone": "phone",
@@ -2322,6 +2368,7 @@ window.__ModuleLoader__.load({
 				{ id: PKG + ".compat", order: 44, kind: "switch", field: "compat", titleKey: "row.compat.title", descKey: "row.compat.desc" },
 				{ id: PKG + ".miracle", order: 45, kind: "switch", field: "miracle", titleKey: "row.miracle.title", descKey: "row.miracle.desc" },
 				{ id: PKG + ".push", order: 46, kind: "switch", field: "push", titleKey: "row.push.title", descKey: "row.push.desc" },
+				{ id: PKG + ".wide", order: 48, kind: "switch", field: "wide", titleKey: "row.wide.title", descKey: "row.wide.desc" },
 				{ id: PKG + ".readout", order: 47, kind: "readout", titleKey: "row.readout.title", descKey: "row.readout.desc" },
 			];
 
