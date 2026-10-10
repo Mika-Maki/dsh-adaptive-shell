@@ -1,0 +1,5 @@
+# Bundle layer for this profile. `plugin_manager install_bundle` applies it into the profile.
+# The row resolves by package name, so the installed copy is what boots.
+- insert:
+    - id: adaptive-shell
+      name: dsh-adaptive-shell
