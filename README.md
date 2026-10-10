@@ -332,8 +332,8 @@ node test/smoke.mjs
 ## 安装 / 卸载
 
 ```bash
-# 安装（需要一次页面刷新）
-plugin_manager action=install_bundle target=/root/DSHplugs/dsh-adaptive-shell
+# 安装（link 方式，改代码后刷新页面即生效）
+plugin_manager action=install_bundle target=<本仓库的绝对路径>
 
 # 卸载（正规路径，会同时清 package.json / bundles / lock / node_modules）
 plugin_manager action=remove_bundle target=dsh-adaptive-shell

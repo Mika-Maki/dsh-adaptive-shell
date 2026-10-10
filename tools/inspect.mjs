@@ -14,7 +14,37 @@
  * Usage: node tools/inspect.mjs <web token>   (the token `dsh web` prints in its URL)
  */
 const { spawn } = require('child_process');
-const CH='/root/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux-arm64/chrome-headless-shell';
+/** Find a headless browser: `DSH_INSPECT_BROWSER`, a playwright cache, or one on PATH. */
+function findBrowser() {
+  if (process.env.DSH_INSPECT_BROWSER) return process.env.DSH_INSPECT_BROWSER;
+  const { readdirSync, existsSync } = require('node:fs');
+  const { join } = require('node:path');
+  const { homedir } = require('node:os');
+  const roots = [join(homedir(), '.cache/ms-playwright'), join(homedir(), 'Library/Caches/ms-playwright')];
+  for (const root of roots) {
+    if (!existsSync(root)) continue;
+    for (const entry of readdirSync(root)) {
+      for (const name of ['chrome-headless-shell', 'chrome']) {
+        for (const candidate of [
+          join(root, entry, 'chrome-headless-shell-linux-arm64', name),
+          join(root, entry, 'chrome-headless-shell-linux64', name),
+          join(root, entry, 'chrome-linux', name),
+          join(root, entry, 'chrome-mac', name),
+        ]) if (existsSync(candidate)) return candidate;
+      }
+    }
+  }
+  const { execFileSync } = require('node:child_process');
+  for (const name of ['chrome-headless-shell', 'chromium', 'google-chrome', 'chrome']) {
+    try {
+      return execFileSync('which', [name], { encoding: 'utf8' }).trim();
+    } catch (error) {
+      /* try the next name */
+    }
+  }
+  return 'chromium';
+}
+const CH = findBrowser();
 const TOKEN = process.argv[2] || process.env.DSH_WEB_TOKEN || '';
 const URL = 'http://127.0.0.1:3080/' + (TOKEN ? '?token=' + TOKEN : '');
 const port = Number(process.env.DSH_INSPECT_PORT || 9344);
